@@ -7,11 +7,28 @@ ruoyi:
   # 版权年份
   copyrightYear: 2026
   # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
-  profile: D:/ruoyi/uploadPath
+  profile: ${FABRIC_UPLOAD_PATH:D:/ruoyi/uploadPath}
   # 获取ip地址开关
   addressEnabled: false
   # 验证码类型 math 数字计算 char 字符验证
   captchaType: math
+  # Redis开关（开发环境默认使用进程内缓存，无需安装Redis）
+  redis:
+    enabled: false
+  # 面辅料测试数据初始化（已进入测试阶段，默认关闭，避免重启后重新造数）
+  fabric:
+    data-init-enabled: false
+    data-target-2026: 100
+    data-target-2025: 100
+    accessory-init-enabled: false
+    accessory-csv: classpath:data/accessory-2026.csv
+    accessory-target-2026: 100
+    image-init-enabled: false
+    image-source-directory: ${FABRIC_IMAGE_SOURCE_DIRECTORY:}
+  # 面辅料库存期初测试数据（默认关闭）
+  inventory:
+    data-init-enabled: false
+    workbook: ${FABRIC_INVENTORY_WORKBOOK:}
 
 # 开发环境配置
 server:
@@ -135,7 +152,7 @@ referer:
   # 防盗链开关
   enabled: false
   # 允许的域名列表
-  allowed-domains: localhost,127.0.0.1,ruoyi.vip,www.ruoyi.vip
+  allowed-domains: localhost,127.0.0.1
 
 # 防止XSS攻击
 xss:

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AccessoryMapper">
+
+    <resultMap id="AccessoryResult" type="FabricAccessory">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="entryDate" column="entry_date"/>
+        <result property="year" column="accessory_year"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="supplierPhone" column="supplier_phone"/>
+        <result property="supplierAddress" column="supplier_address"/>
+        <result property="sizeSpec" column="size_spec"/>
+        <result property="bulkPrice" column="bulk_price"/>
+        <result property="regularUse" column="regular_use"/>
+        <result property="compliant" column="compliant"/>
+        <result property="notes" column="notes"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="recorderName" column="recorder_name"/>
+        <result property="inventoryStockCount" column="inventory_stock_count"/>
+    </resultMap>
+
+    <resultMap id="SupplierResult" type="FabricAccessorySupplier">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="phone" column="phone"/>
+        <result property="address" column="address"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="AccessoryImageResult" type="FabricAccessoryImage">
+        <id property="id" column="id"/>
+        <result property="accessoryId" column="accessory_id"/>
+        <result property="imageUrl" column="image_url"/>
+        <result property="thumbnailUrl" column="thumbnail_url"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectAccessoryVo">
+        select a.id, a.code, a.entry_date, a.accessory_year, a.supplier_id,
+               a.size_spec, a.bulk_price, a.regular_use, a.compliant,
+               a.notes, a.del_flag, a.create_by, a.create_time,
+               a.update_by, a.update_time,
+               s.name as supplier_name, s.phone as supplier_phone,
+               s.address as supplier_address,
+               case
+                   when u.nick_name is not null
+                        and trim(u.nick_name) != ''
+                        and u.nick_name != a.create_by
+                       then concat(u.nick_name, '（', a.create_by, '）')
+                   else a.create_by
+               end as recorder_name,
+               coalesce(inv.stock_count, 0) as inventory_stock_count
+          from fabric_accessory a
+          left join fabric_accessory_supplier s on s.id = a.supplier_id
+          left join sys_user u on u.user_name = a.create_by and u.del_flag = '0'
+          left join (
+              select accessory_id, count(*) as stock_count
+                from inventory_stock
+               where del_flag='0' and accessory_id is not null
+               group by accessory_id
+          ) inv on inv.accessory_id=a.id
+    </sql>
+
+    <select id="selectAccessoryList" parameterType="FabricAccessory" resultMap="AccessoryResult">
+        <include refid="selectAccessoryVo"/>
+        <where>
+            a.del_flag = '0'
+            <if test="code != null and code != ''">
+                and lower(a.code) like lower(concat('%', #{code}, '%'))
+            </if>
+            <if test="year != null">and a.accessory_year = #{year}</if>
+            <if test="supplierId != null">and a.supplier_id = #{supplierId}</if>
+            <if test="regularUse != null and regularUse != '' and regularUse != 'blank'">and a.regular_use = #{regularUse}</if>
+            <if test="regularUse == 'blank'">and a.regular_use is null</if>
+            <if test="compliant != null and compliant != '' and compliant != 'blank'">and a.compliant = #{compliant}</if>
+            <if test="compliant == 'blank'">and a.compliant is null</if>
+        </where>
+        order by a.entry_date desc, a.code desc
+    </select>
+
+    <select id="selectAccessoryById" parameterType="Long" resultMap="AccessoryResult">
+        <include refid="selectAccessoryVo"/>
+        where a.id = #{id} and a.del_flag = '0'
+    </select>
+
+    <select id="selectAccessoryByCode" parameterType="String" resultMap="AccessoryResult">
+        <include refid="selectAccessoryVo"/>
+        where lower(a.code) = lower(#{code})
+        limit 1
+    </select>
+
+    <select id="selectRecentAccessories" resultMap="AccessoryResult">
+        <include refid="selectAccessoryVo"/>
+        where a.del_flag = '0'
+        order by a.create_time desc, a.id desc
+        limit 6
+    </select>
+
+    <select id="selectAccessoriesWithoutImagesByYear" parameterType="Integer" resultMap="AccessoryResult">
+        select a.id, a.code, a.entry_date, a.accessory_year
+          from fabric_accessory a
+         where a.accessory_year = #{year}
+           and a.del_flag = '0'
+           and not exists (
+               select 1
+                 from fabric_accessory_image ai
+                where ai.accessory_id = a.id
+           )
+         order by a.id
+    </select>
+
+    <select id="countAllAccessories" resultType="int">
+        select count(*) from fabric_accessory
+    </select>
+
+    <select id="countAccessoryTotal" resultType="int">
+        select count(*) from fabric_accessory where del_flag = '0'
+    </select>
+
+    <select id="countAccessoryByYear" parameterType="Integer" resultType="int">
+        select count(*)
+          from fabric_accessory
+         where accessory_year = #{year} and del_flag = '0'
+    </select>
+
+    <select id="countAccessorySuppliers" resultType="int">
+        select count(distinct supplier_id)
+          from fabric_accessory
+         where del_flag = '0'
+    </select>
+
+    <select id="countAccessoryImages" resultType="int">
+        select count(*)
+          from fabric_accessory_image ai
+          join fabric_accessory a on a.id = ai.accessory_id
+         where a.del_flag = '0'
+    </select>
+
+    <select id="countAccessoriesWithImages" resultType="int">
+        select count(distinct ai.accessory_id)
+          from fabric_accessory_image ai
+          join fabric_accessory a on a.id = ai.accessory_id
+         where a.del_flag = '0'
+    </select>
+
+    <select id="selectAccessoryYearStats" resultType="map">
+        select cast(accessory_year as varchar) as name, count(*) as `value`
+          from fabric_accessory
+         where del_flag = '0'
+         group by accessory_year
+         order by accessory_year
+    </select>
+
+    <insert id="insertAccessory" parameterType="FabricAccessory" useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_accessory (
+            code, entry_date, accessory_year, supplier_id, size_spec, bulk_price,
+            regular_use, compliant, notes, del_flag, create_by, create_time
+        ) values (
+            #{code}, #{entryDate}, #{year}, #{supplierId}, #{sizeSpec}, #{bulkPrice},
+            #{regularUse}, #{compliant}, #{notes}, '0', #{createBy}, current_timestamp
+        )
+    </insert>
+
+    <update id="updateAccessory" parameterType="FabricAccessory">
+        update fabric_accessory
+           set code = #{code}, accessory_year = #{year},
+               supplier_id = #{supplierId},
+               size_spec = #{sizeSpec}, bulk_price = #{bulkPrice},
+               regular_use = #{regularUse}, compliant = #{compliant},
+               notes = #{notes}, update_by = #{updateBy},
+               update_time = current_timestamp
+         where id = #{id} and del_flag = '0'
+    </update>
+
+    <select id="selectImagesByAccessoryIds" resultMap="AccessoryImageResult">
+        select id, accessory_id, image_url, thumbnail_url, sort_order, create_time
+          from fabric_accessory_image
+         where accessory_id in
+        <foreach collection="accessoryIds" item="accessoryId"
+                 open="(" separator="," close=")">#{accessoryId}</foreach>
+         order by accessory_id, sort_order, id
+    </select>
+
+    <insert id="insertAccessoryImage" parameterType="FabricAccessoryImage"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_accessory_image (
+            accessory_id, image_url, thumbnail_url, sort_order, create_time
+        ) values (
+            #{accessoryId}, #{imageUrl}, #{thumbnailUrl}, #{sortOrder}, current_timestamp
+        )
+    </insert>
+
+    <delete id="deleteImagesByAccessoryId" parameterType="Long">
+        delete from fabric_accessory_image where accessory_id = #{accessoryId}
+    </delete>
+
+    <update id="deleteAccessoryByIds">
+        update fabric_accessory set del_flag = '2', update_time = current_timestamp
+         where id in
+        <foreach collection="array" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <select id="selectSupplierList" resultMap="SupplierResult">
+        select id, name, phone, address, create_time
+          from fabric_accessory_supplier order by name
+    </select>
+    <select id="selectSupplierById" parameterType="Long" resultMap="SupplierResult">
+        select id, name, phone, address, create_time
+          from fabric_accessory_supplier where id = #{id}
+    </select>
+    <select id="selectSupplierByName" parameterType="String" resultMap="SupplierResult">
+        select id, name, phone, address, create_time
+          from fabric_accessory_supplier where lower(name) = lower(#{name}) limit 1
+    </select>
+    <insert id="insertSupplier" parameterType="FabricAccessorySupplier" useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_accessory_supplier (name, phone, address, create_time)
+        values (#{name}, #{phone}, #{address}, current_timestamp)
+    </insert>
+    <update id="updateSupplier" parameterType="FabricAccessorySupplier">
+        update fabric_accessory_supplier
+           set name = #{name}, phone = #{phone}, address = #{address}
+         where id = #{id}
+    </update>
+    <update id="updateImportedSupplierDetails">
+        update fabric_accessory_supplier
+           set phone = case when (phone is null or trim(phone) = '') and #{phone} is not null then #{phone} else phone end,
+               address = case when (address is null or trim(address) = '') and #{address} is not null then #{address} else address end
+         where id = #{id}
+    </update>
+    <select id="countAccessoriesBySupplierId" parameterType="Long" resultType="int">
+        select count(*) from fabric_accessory where supplier_id = #{supplierId}
+    </select>
+    <delete id="deleteSupplierById" parameterType="Long">
+        delete from fabric_accessory_supplier where id = #{id}
+    </delete>
+
+    <insert id="mergeCodeSequence">
+        insert into fabric_accessory_code_sequence (accessory_year, last_value)
+        select #{year}, 0
+         where not exists (
+             select 1
+               from fabric_accessory_code_sequence
+              where accessory_year = #{year}
+         )
+    </insert>
+
+    <update id="incrementCodeSequence" parameterType="Integer">
+        update fabric_accessory_code_sequence
+           set last_value = last_value + 1
+         where accessory_year = #{year}
+    </update>
+
+    <update id="updateCodeSequence">
+        update fabric_accessory_code_sequence
+           set last_value = #{lastValue}
+         where accessory_year = #{year}
+    </update>
+
+    <select id="selectCodeSequenceForUpdate" parameterType="Integer" resultType="int">
+        select last_value
+          from fabric_accessory_code_sequence
+         where accessory_year = #{year}
+           for update
+    </select>
+</mapper>

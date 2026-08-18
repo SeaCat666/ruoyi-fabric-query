@@ -136,11 +136,12 @@ function handleBeforeUpload(file) {
   if (props.fileType.length) {
     let fileExtension = ""
     if (file.name.lastIndexOf(".") > -1) {
-      fileExtension = file.name.slice(file.name.lastIndexOf(".") + 1)
+      fileExtension = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()
     }
-    isImg = props.fileType.some(type => {
-      if (file.type.indexOf(type) > -1) return true
-      if (fileExtension && fileExtension.indexOf(type) > -1) return true
+    isImg = props.fileType.some(item => {
+      const type = String(item).toLowerCase()
+      if (file.type.toLowerCase().includes(type)) return true
+      if (fileExtension === type) return true
       return false
     })
   } else {
@@ -155,9 +156,9 @@ function handleBeforeUpload(file) {
     return false
   }
   if (props.fileSize) {
-    const isLt = file.size / 1024 / 1024 < props.fileSize
+    const isLt = file.size / 1024 / 1024 <= props.fileSize
     if (!isLt) {
-      proxy.$modal.msgError(`上传头像图片大小不能超过 ${props.fileSize} MB!`)
+    proxy.$modal.msgError(`上传图片大小不能超过 ${props.fileSize} MB!`)
       return false
     }
   }
@@ -174,13 +175,12 @@ function handleExceed() {
 function handleUploadSuccess(res, file) {
   if (res.code === 200) {
     uploadList.value.push({ name: res.fileName, url: res.fileName })
-    uploadedSuccessfully()
+    settleUploadBatch()
   } else {
-    number.value--
-    proxy.$modal.closeLoading()
+    number.value = Math.max(number.value - 1, 0)
     proxy.$modal.msgError(res.msg)
     proxy.$refs.imageUpload.handleRemove(file)
-    uploadedSuccessfully()
+    settleUploadBatch()
   }
 }
 
@@ -195,8 +195,13 @@ function handleDelete(file) {
 }
 
 // 上传结束处理
-function uploadedSuccessfully() {
-  if (number.value > 0 && uploadList.value.length === number.value) {
+function settleUploadBatch() {
+  if (number.value === 0) {
+    uploadList.value = []
+    proxy.$modal.closeLoading()
+    return
+  }
+  if (uploadList.value.length === number.value) {
     fileList.value = fileList.value.filter(f => f.url !== undefined).concat(uploadList.value)
     uploadList.value = []
     number.value = 0
@@ -206,9 +211,11 @@ function uploadedSuccessfully() {
 }
 
 // 上传失败
-function handleUploadError() {
+function handleUploadError(error, file) {
+  number.value = Math.max(number.value - 1, 0)
   proxy.$modal.msgError("上传图片失败")
-  proxy.$modal.closeLoading()
+  proxy.$refs.imageUpload.handleRemove(file)
+  settleUploadBatch()
 }
 
 // 预览

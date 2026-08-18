@@ -16,6 +16,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.text.Convert;
 import com.ruoyi.common.exception.DemoModeException;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.exception.base.BaseException;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.html.EscapeUtil;
 
@@ -36,7 +37,7 @@ public class GlobalExceptionHandler
     public AjaxResult handleAccessDeniedException(AccessDeniedException e, HttpServletRequest request)
     {
         String requestURI = request.getRequestURI();
-        log.error("请求地址'{}',权限校验失败'{}'", requestURI, e.getMessage());
+        log.warn("请求地址'{}',权限校验失败：{}", requestURI, e.getMessage());
         return AjaxResult.error(HttpStatus.FORBIDDEN, "没有权限，请联系管理员授权");
     }
 
@@ -48,7 +49,7 @@ public class GlobalExceptionHandler
             HttpServletRequest request)
     {
         String requestURI = request.getRequestURI();
-        log.error("请求地址'{}',不支持'{}'请求", requestURI, e.getMethod());
+        log.warn("请求地址'{}',不支持'{}'请求", requestURI, e.getMethod());
         return AjaxResult.error(e.getMessage());
     }
 
@@ -58,9 +59,19 @@ public class GlobalExceptionHandler
     @ExceptionHandler(ServiceException.class)
     public AjaxResult handleServiceException(ServiceException e, HttpServletRequest request)
     {
-        log.error(e.getMessage(), e);
+        log.warn("请求地址'{}',业务校验未通过：{}", request.getRequestURI(), e.getMessage());
         Integer code = e.getCode();
         return StringUtils.isNotNull(code) ? AjaxResult.error(code, e.getMessage()) : AjaxResult.error(e.getMessage());
+    }
+
+    /**
+     * 用户、验证码等可预期的业务异常
+     */
+    @ExceptionHandler(BaseException.class)
+    public AjaxResult handleBaseException(BaseException e, HttpServletRequest request)
+    {
+        log.warn("请求地址'{}',业务校验未通过：{}", request.getRequestURI(), e.getMessage());
+        return AjaxResult.error(e.getMessage());
     }
 
     /**
@@ -118,8 +129,8 @@ public class GlobalExceptionHandler
     @ExceptionHandler(BindException.class)
     public AjaxResult handleBindException(BindException e)
     {
-        log.error(e.getMessage(), e);
         String message = e.getAllErrors().get(0).getDefaultMessage();
+        log.warn("请求参数校验未通过：{}", message);
         return AjaxResult.error(message);
     }
 
@@ -129,8 +140,8 @@ public class GlobalExceptionHandler
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Object handleMethodArgumentNotValidException(MethodArgumentNotValidException e)
     {
-        log.error(e.getMessage(), e);
         String message = e.getBindingResult().getFieldError().getDefaultMessage();
+        log.warn("请求参数校验未通过：{}", message);
         return AjaxResult.error(message);
     }
 

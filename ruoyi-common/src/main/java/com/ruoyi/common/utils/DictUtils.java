@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.ruoyi.common.constant.CacheConstants;
 import com.ruoyi.common.core.domain.entity.SysDictData;
@@ -41,10 +42,16 @@ public class DictUtils
      */
     public static List<SysDictData> getDictCache(String key)
     {
-        JSONArray arrayCache = SpringUtils.getBean(RedisCache.class).getCacheObject(getCacheKey(key));
-        if (StringUtils.isNotNull(arrayCache))
+        Object cache = SpringUtils.getBean(RedisCache.class).getCacheObject(getCacheKey(key));
+        if (cache instanceof JSONArray arrayCache)
         {
             return arrayCache.toList(SysDictData.class);
+        }
+        if (cache instanceof List<?>)
+        {
+            // Redis 序列化后通常是 JSONArray；进程内缓存保留为 ArrayList。
+            // 统一重新转换，避免开发模式下发生 ClassCastException。
+            return JSON.parseArray(JSON.toJSONString(cache), SysDictData.class);
         }
         return null;
     }

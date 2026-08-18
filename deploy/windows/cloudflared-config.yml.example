@@ -1,0 +1,7 @@
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: C:/Users/REPLACE_WITH_WINDOWS_USERNAME/.cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: fabric.REPLACE_WITH_COMPANY_DOMAIN
+    service: http://127.0.0.1:8088
+  - service: http_status:404

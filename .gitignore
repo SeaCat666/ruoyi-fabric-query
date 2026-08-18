@@ -7,6 +7,16 @@
 
 target/
 !.mvn/wrapper/maven-wrapper.jar
+/data/
+/ruoyi-admin/data/
+/runtime/
+/backups/
+/tools/*.exe
+/tools/*.zip
+/logs/
+/.codex-docx-review/
+/.vscode/
+/ruoyi-admin/src/main/resources/data/
 
 ######################################################################
 # IDE

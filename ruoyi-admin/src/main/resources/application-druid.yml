@@ -2,11 +2,11 @@
 spring:
     datasource:
         type: com.alibaba.druid.pool.DruidDataSource
-        driverClassName: com.mysql.cj.jdbc.Driver
+        driverClassName: org.h2.Driver
         druid:
             # 主库数据源
             master:
-                url: jdbc:mysql://localhost:3306/ruoyi_fabric_query?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+                url: jdbc:h2:file:${FABRIC_DB_PATH:./data/fabric};MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE
                 username: root
                 password: password
             # 从库数据源
@@ -35,7 +35,7 @@ spring:
             # 配置一个连接在池中最大生存的时间，单位是毫秒
             maxEvictableIdleTimeMillis: 900000
             # 配置检测连接是否有效
-            validationQuery: SELECT 1 FROM DUAL
+            validationQuery: SELECT 1
             testWhileIdle: true
             testOnBorrow: false
             testOnReturn: false
@@ -54,8 +54,15 @@ spring:
                     enabled: true
                     # 慢SQL记录
                     log-slow-sql: true
-                    slow-sql-millis: 1000
-                    merge-sql: true
+                    slow-sql-millis: 3000
+                    # H2 的 MERGE/DDL 语法无需交给 Druid 做 MySQL SQL 合并解析
+                    merge-sql: false
                 wall:
                     config:
                         multi-statement-allow: true
+    sql:
+        init:
+            mode: never
+            encoding: UTF-8
+            schema-locations: classpath:sql/init-h2.sql
+            continue-on-error: false

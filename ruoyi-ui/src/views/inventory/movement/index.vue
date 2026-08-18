@@ -1,0 +1,21 @@
+<template>
+  <div class="app-container movement-page">
+    <section class="movement-head"><div><span>AUDIT TRAIL</span><h2>库存流水</h2><p>每一次库存和锁定量变化均自动记录，流水只读且不可删除。</p></div><el-tag type="success" effect="dark" size="large">完整可追溯</el-tag></section>
+    <el-form ref="queryRef" :model="query" inline><el-form-item label="业务单号" prop="businessNo"><el-input v-model="query.businessNo" clearable placeholder="RK-/LY-"/></el-form-item><el-form-item label="变动类型" prop="movementType"><el-select v-model="query.movementType" clearable style="width:160px"><el-option v-for="item in types" :key="item.value" :label="item.label" :value="item.value"/></el-select></el-form-item><el-form-item><el-button type="primary" icon="Search" @click="search">查询</el-button><el-button icon="Refresh" @click="resetQuery">重置</el-button></el-form-item></el-form>
+    <el-table v-loading="loading" :data="rows"><el-table-column label="流水号" prop="movementNo" min-width="205" fixed/><el-table-column label="时间" prop="operationTime" width="165"/><el-table-column label="类型" width="105" align="center"><template #default="{row}"><el-tag :type="typeColor(row.movementType)">{{ typeLabel(row.movementType) }}</el-tag></template></el-table-column><el-table-column label="库存编号" prop="stockCode" width="145"/><el-table-column label="物料编号" prop="materialCode" min-width="110"><template #default="{row}">{{ row.materialCode||'未编号' }}</template></el-table-column><el-table-column label="颜色" prop="colorNo" min-width="95"/><el-table-column label="业务单号" prop="businessNo" min-width="180" show-overflow-tooltip/><el-table-column label="库存变动" width="100" align="right"><template #default="{row}"><span :class="numberClass(row.quantityChange)">{{ signed(row.quantityChange) }}</span></template></el-table-column><el-table-column label="锁定变动" width="100" align="right"><template #default="{row}"><span :class="numberClass(row.lockedChange)">{{ signed(row.lockedChange) }}</span></template></el-table-column><el-table-column label="结存" prop="balanceQty" width="90" align="right"/><el-table-column label="锁定结存" prop="balanceLockedQty" width="95" align="right"/><el-table-column label="辅助变动" width="100" align="right"><template #default="{row}"><span :class="numberClass(row.auxiliaryChange)">{{ signed(row.auxiliaryChange) }}</span></template></el-table-column><el-table-column label="操作人" prop="operatorName" min-width="120"/><el-table-column label="说明" prop="remark" min-width="160" show-overflow-tooltip/></el-table>
+    <pagination v-show="total>0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="load"/>
+  </div>
+</template>
+
+<script setup>
+import {listMovements} from "@/api/inventory/inventory"
+const {proxy}=getCurrentInstance();const loading=ref(false),rows=ref([]),total=ref(0),query=reactive({pageNum:1,pageSize:20,businessNo:undefined,movementType:undefined})
+const types=[{value:'OPENING',label:'期初'},{value:'INBOUND',label:'入库'},{value:'INBOUND_CANCEL',label:'入库冲销'},{value:'LOCK',label:'锁定'},{value:'RELEASE',label:'释放'},{value:'ISSUE',label:'发料'},{value:'RETURN',label:'退回'},{value:'ADJUST',label:'调整'}]
+function load(){loading.value=true;listMovements(query).then(r=>{rows.value=r.rows||[];total.value=r.total||0}).finally(()=>loading.value=false)} function search(){query.pageNum=1;load()} function resetQuery(){proxy.resetForm('queryRef');search()}
+function typeLabel(v){return types.find(i=>i.value===v)?.label||v} function typeColor(v){if(['INBOUND','RETURN'].includes(v))return 'success';if(['ISSUE','INBOUND_CANCEL'].includes(v))return 'danger';if(['LOCK','RELEASE'].includes(v))return 'warning';return 'info'}
+function signed(v){const n=Number(v||0);return `${n>0?'+':''}${Number.isInteger(n)?n:n.toFixed(3)}`} function numberClass(v){return Number(v)>0?'positive':Number(v)<0?'negative':''} load()
+</script>
+
+<style scoped>
+.movement-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:22px 26px;color:#fff;border-radius:12px;background:linear-gradient(120deg,#1e293b,#334155)}.movement-head span{font-size:11px;letter-spacing:2px;opacity:.7}.movement-head h2{margin:4px 0}.movement-head p{margin:0;opacity:.8}.positive{color:#047857;font-weight:700}.negative{color:#b42318;font-weight:700}:deep(.el-table__header th){background:#f8fafc}
+</style>

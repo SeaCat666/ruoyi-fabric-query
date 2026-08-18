@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.InventoryMapper">
+
+    <resultMap id="StockResult" type="InventoryStock">
+        <id property="id" column="id"/>
+        <result property="stockCode" column="stock_code"/>
+        <result property="materialType" column="material_type"/>
+        <result property="fabricId" column="fabric_id"/>
+        <result property="accessoryId" column="accessory_id"/>
+        <result property="materialCode" column="material_code"/>
+        <result property="developmentStyleNo" column="development_style_no"/>
+        <result property="skc" column="skc"/>
+        <result property="colorNo" column="color_no"/>
+        <result property="goodsType" column="goods_type"/>
+        <result property="primaryUnit" column="primary_unit"/>
+        <result property="auxiliaryUnit" column="auxiliary_unit"/>
+        <result property="onHandQty" column="on_hand_qty"/>
+        <result property="lockedQty" column="locked_qty"/>
+        <result property="onHandAuxQty" column="on_hand_aux_qty"/>
+        <result property="lockedAuxQty" column="locked_aux_qty"/>
+        <result property="lastCountTime" column="last_count_time"/>
+        <result property="version" column="version"/>
+        <result property="sourceKey" column="source_key"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+        <result property="archiveCode" column="archive_code"/>
+        <result property="archiveName" column="archive_name"/>
+        <result property="archiveSupplierName" column="archive_supplier_name"/>
+    </resultMap>
+
+    <resultMap id="StockImageResult" type="InventoryStockImage">
+        <id property="id" column="id"/><result property="stockId" column="stock_id"/>
+        <result property="imageUrl" column="image_url"/><result property="thumbnailUrl" column="thumbnail_url"/>
+        <result property="imageType" column="image_type"/><result property="sourceName" column="source_name"/>
+        <result property="contentHash" column="content_hash"/><result property="sortOrder" column="sort_order"/>
+    </resultMap>
+
+    <sql id="stockColumns">
+        s.id, s.stock_code, s.material_type, s.fabric_id, s.accessory_id,
+        s.material_code, s.development_style_no, s.skc, s.color_no, s.goods_type,
+        s.primary_unit, s.auxiliary_unit, s.on_hand_qty, s.locked_qty,
+        s.on_hand_aux_qty, s.locked_aux_qty, s.last_count_time, s.version,
+        s.source_key, s.del_flag, s.create_by, s.create_time, s.update_by,
+        s.update_time, s.remark,
+        case when s.material_type='F' then f.code else a.code end as archive_code,
+        case when s.material_type='F' then f.product_name else a.size_spec end as archive_name,
+        case when s.material_type='F' then fs.name else aas.name end as archive_supplier_name
+    </sql>
+
+    <sql id="stockArchiveJoins">
+        left join fabric f on f.id=s.fabric_id
+        left join fabric_supplier fs on fs.id=f.supplier_id
+        left join fabric_accessory a on a.id=s.accessory_id
+        left join fabric_accessory_supplier aas on aas.id=a.supplier_id
+    </sql>
+
+    <select id="selectStockList" parameterType="InventoryStock" resultMap="StockResult">
+        select <include refid="stockColumns"/> from inventory_stock s
+        <include refid="stockArchiveJoins"/>
+        <where>
+            s.del_flag = '0'
+            <if test="stockCode != null and stockCode != ''">and lower(s.stock_code) like lower(concat('%', #{stockCode}, '%'))</if>
+            <if test="materialType != null and materialType != ''">and s.material_type = #{materialType}</if>
+            <if test="materialCode != null and materialCode != ''">and lower(s.material_code) like lower(concat('%', #{materialCode}, '%'))</if>
+            <if test="developmentStyleNo != null and developmentStyleNo != ''">and lower(s.development_style_no) like lower(concat('%', #{developmentStyleNo}, '%'))</if>
+            <if test="colorNo != null and colorNo != ''">and lower(s.color_no) like lower(concat('%', #{colorNo}, '%'))</if>
+            <if test="fabricId != null">and s.fabric_id = #{fabricId}</if>
+            <if test="accessoryId != null">and s.accessory_id = #{accessoryId}</if>
+        </where>
+        order by s.last_count_time desc, s.id desc
+    </select>
+    <select id="selectStockById" parameterType="Long" resultMap="StockResult">
+        select <include refid="stockColumns"/> from inventory_stock s
+        <include refid="stockArchiveJoins"/>
+        where s.id=#{id} and s.del_flag='0'
+    </select>
+    <select id="selectStockForUpdate" parameterType="Long" resultMap="StockResult">
+        select <include refid="stockColumns"/> from inventory_stock s
+        <include refid="stockArchiveJoins"/>
+        where s.id=#{id} and s.del_flag='0' for update
+    </select>
+    <insert id="insertStock" parameterType="InventoryStock" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_stock(stock_code,material_type,fabric_id,accessory_id,material_code,
+        development_style_no,skc,color_no,goods_type,primary_unit,auxiliary_unit,on_hand_qty,
+        locked_qty,on_hand_aux_qty,locked_aux_qty,last_count_time,version,source_key,del_flag,
+        create_by,create_time,remark)
+        values(#{stockCode},#{materialType},#{fabricId},#{accessoryId},#{materialCode},
+        #{developmentStyleNo},#{skc},#{colorNo},#{goodsType},#{primaryUnit},#{auxiliaryUnit},
+        #{onHandQty},#{lockedQty},#{onHandAuxQty},#{lockedAuxQty},#{lastCountTime},0,
+        #{sourceKey},'0',#{createBy},current_timestamp,#{remark})
+    </insert>
+    <update id="updateStock" parameterType="InventoryStock">
+        update inventory_stock set material_type=#{materialType},fabric_id=#{fabricId},accessory_id=#{accessoryId},
+        material_code=#{materialCode},development_style_no=#{developmentStyleNo},skc=#{skc},color_no=#{colorNo},
+        goods_type=#{goodsType},primary_unit=#{primaryUnit},auxiliary_unit=#{auxiliaryUnit},remark=#{remark},
+        update_by=#{updateBy},update_time=current_timestamp where id=#{id} and del_flag='0'
+    </update>
+    <update id="updateStockBalance">
+        update inventory_stock set on_hand_qty=#{onHandQty},locked_qty=#{lockedQty},
+        on_hand_aux_qty=#{onHandAuxQty},locked_aux_qty=#{lockedAuxQty},last_count_time=current_timestamp,
+        version=version+1,update_by=#{updateBy},update_time=current_timestamp
+        where id=#{id} and version=#{version} and del_flag='0'
+    </update>
+    <insert id="insertStockImage" parameterType="InventoryStockImage" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_stock_image(stock_id,image_url,thumbnail_url,image_type,source_name,content_hash,sort_order,create_time)
+        values(#{stockId},#{imageUrl},#{thumbnailUrl},#{imageType},#{sourceName},#{contentHash},#{sortOrder},current_timestamp)
+    </insert>
+    <select id="selectStockImages" resultMap="StockImageResult">
+        select id,stock_id,image_url,thumbnail_url,image_type,source_name,content_hash,sort_order
+        from inventory_stock_image where stock_id in
+        <foreach collection="stockIds" item="stockId" open="(" separator="," close=")">#{stockId}</foreach>
+        order by stock_id,sort_order,id
+    </select>
+    <select id="countStockBySourceKey" parameterType="String" resultType="int">
+        select count(*) from inventory_stock where source_key=#{sourceKey}
+    </select>
+    <select id="selectActiveFabricForUpdate" parameterType="Long" resultType="long">
+        select id from fabric where id=#{id} and del_flag='0' for update
+    </select>
+    <select id="selectActiveAccessoryForUpdate" parameterType="Long" resultType="long">
+        select id from fabric_accessory where id=#{id} and del_flag='0' for update
+    </select>
+    <select id="selectActiveFabricIdsForUpdate" resultType="long">
+        select id from fabric where del_flag='0' and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        order by id for update
+    </select>
+    <select id="selectActiveAccessoryIdsForUpdate" resultType="long">
+        select id from fabric_accessory where del_flag='0' and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        order by id for update
+    </select>
+    <select id="selectReferencedFabricCodes" resultType="string">
+        select distinct f.code from inventory_stock s join fabric f on f.id=s.fabric_id
+        where s.del_flag='0' and s.fabric_id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        order by f.code
+    </select>
+    <select id="selectReferencedAccessoryCodes" resultType="string">
+        select distinct a.code from inventory_stock s join fabric_accessory a on a.id=s.accessory_id
+        where s.del_flag='0' and s.accessory_id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        order by a.code
+    </select>
+    <select id="countMovementsByStockId" parameterType="Long" resultType="int">
+        select count(*) from inventory_movement where stock_id=#{stockId}
+    </select>
+    <select id="countInboundDetailsByStockId" parameterType="Long" resultType="int">
+        select count(*) from inventory_inbound_detail where stock_id=#{stockId}
+    </select>
+    <select id="countRequisitionDetailsByStockId" parameterType="Long" resultType="int">
+        select count(*) from inventory_requisition_detail where stock_id=#{stockId}
+    </select>
+    <update id="deleteStock">
+        update inventory_stock set del_flag='2',fabric_id=null,accessory_id=null,
+        update_by=#{updateBy},update_time=current_timestamp
+        where id=#{id} and del_flag='0'
+    </update>
+
+    <resultMap id="InboundResult" type="InventoryInboundOrder">
+        <id property="id" column="id"/><result property="orderNo" column="order_no"/>
+        <result property="orderDate" column="order_date"/><result property="status" column="status"/>
+        <result property="operatorName" column="operator_name"/><result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/><result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/><result property="remark" column="remark"/>
+    </resultMap>
+    <resultMap id="InboundDetailResult" type="InventoryInboundDetail">
+        <id property="id" column="id"/><result property="orderId" column="order_id"/>
+        <result property="stockId" column="stock_id"/><result property="stockCode" column="stock_code"/>
+        <result property="materialCode" column="material_code"/><result property="colorNo" column="color_no"/>
+        <result property="primaryUnit" column="primary_unit"/><result property="auxiliaryUnit" column="auxiliary_unit"/>
+        <result property="quantity" column="quantity"/><result property="auxiliaryQuantity" column="auxiliary_quantity"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+    <select id="selectInboundList" parameterType="InventoryInboundOrder" resultMap="InboundResult">
+        select * from inventory_inbound_order
+        <where><if test="orderNo != null and orderNo != ''">lower(order_no) like lower(concat('%',#{orderNo},'%'))</if>
+        <if test="status != null and status != ''">and status=#{status}</if></where>
+        order by order_date desc,id desc
+    </select>
+    <select id="selectInboundById" parameterType="Long" resultMap="InboundResult">select * from inventory_inbound_order where id=#{id}</select>
+    <insert id="insertInbound" parameterType="InventoryInboundOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_inbound_order(order_no,order_date,status,operator_name,create_by,create_time,remark)
+        values(#{orderNo},#{orderDate},#{status},#{operatorName},#{createBy},current_timestamp,#{remark})
+    </insert>
+    <update id="updateInbound" parameterType="InventoryInboundOrder">
+        update inventory_inbound_order set order_date=#{orderDate},operator_name=#{operatorName},remark=#{remark},
+        update_by=#{updateBy},update_time=current_timestamp where id=#{id} and status='DRAFT'
+    </update>
+    <update id="updateInboundStatus">update inventory_inbound_order set status=#{status},update_by=#{updateBy},update_time=current_timestamp where id=#{id} and status=#{expectedStatus}</update>
+    <delete id="deleteInbound" parameterType="Long">delete from inventory_inbound_order where id=#{id} and status='DRAFT'</delete>
+    <delete id="deleteInboundDetails" parameterType="Long">delete from inventory_inbound_detail where order_id=#{orderId}</delete>
+    <insert id="insertInboundDetail" parameterType="InventoryInboundDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_inbound_detail(order_id,stock_id,quantity,auxiliary_quantity,sort_order)
+        values(#{orderId},#{stockId},#{quantity},#{auxiliaryQuantity},#{sortOrder})
+    </insert>
+    <select id="selectInboundDetails" parameterType="Long" resultMap="InboundDetailResult">
+        select d.*,s.stock_code,s.material_code,s.color_no,s.primary_unit,s.auxiliary_unit
+        from inventory_inbound_detail d join inventory_stock s on s.id=d.stock_id
+        where d.order_id=#{orderId} order by d.sort_order,d.id
+    </select>
+
+    <resultMap id="RequisitionResult" type="InventoryRequisitionOrder">
+        <id property="id" column="id"/><result property="orderNo" column="order_no"/>
+        <result property="orderDate" column="order_date"/><result property="applicantName" column="applicant_name"/>
+        <result property="developmentStyleNo" column="development_style_no"/><result property="status" column="status"/>
+        <result property="createBy" column="create_by"/><result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/><result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+    <resultMap id="RequisitionDetailResult" type="InventoryRequisitionDetail">
+        <id property="id" column="id"/><result property="orderId" column="order_id"/>
+        <result property="stockId" column="stock_id"/><result property="stockCode" column="stock_code"/>
+        <result property="materialCode" column="material_code"/><result property="colorNo" column="color_no"/>
+        <result property="primaryUnit" column="primary_unit"/><result property="auxiliaryUnit" column="auxiliary_unit"/>
+        <result property="quantity" column="quantity"/><result property="auxiliaryQuantity" column="auxiliary_quantity"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+    <select id="selectRequisitionList" parameterType="InventoryRequisitionOrder" resultMap="RequisitionResult">
+        select * from inventory_requisition_order
+        <where><if test="orderNo != null and orderNo != ''">lower(order_no) like lower(concat('%',#{orderNo},'%'))</if>
+        <if test="applicantName != null and applicantName != ''">and lower(applicant_name) like lower(concat('%',#{applicantName},'%'))</if>
+        <if test="status != null and status != ''">and status=#{status}</if></where>
+        order by order_date desc,id desc
+    </select>
+    <select id="selectRequisitionById" parameterType="Long" resultMap="RequisitionResult">select * from inventory_requisition_order where id=#{id}</select>
+    <insert id="insertRequisition" parameterType="InventoryRequisitionOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_requisition_order(order_no,order_date,applicant_name,development_style_no,status,create_by,create_time,remark)
+        values(#{orderNo},#{orderDate},#{applicantName},#{developmentStyleNo},#{status},#{createBy},current_timestamp,#{remark})
+    </insert>
+    <update id="updateRequisition" parameterType="InventoryRequisitionOrder">
+        update inventory_requisition_order set order_date=#{orderDate},applicant_name=#{applicantName},
+        development_style_no=#{developmentStyleNo},remark=#{remark},update_by=#{updateBy},update_time=current_timestamp
+        where id=#{id} and status='DRAFT'
+    </update>
+    <update id="updateRequisitionStatus">update inventory_requisition_order set status=#{status},update_by=#{updateBy},update_time=current_timestamp where id=#{id} and status=#{expectedStatus}</update>
+    <delete id="deleteRequisition" parameterType="Long">delete from inventory_requisition_order where id=#{id} and status='DRAFT'</delete>
+    <delete id="deleteRequisitionDetails" parameterType="Long">delete from inventory_requisition_detail where order_id=#{orderId}</delete>
+    <insert id="insertRequisitionDetail" parameterType="InventoryRequisitionDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_requisition_detail(order_id,stock_id,quantity,auxiliary_quantity,sort_order)
+        values(#{orderId},#{stockId},#{quantity},#{auxiliaryQuantity},#{sortOrder})
+    </insert>
+    <select id="selectRequisitionDetails" parameterType="Long" resultMap="RequisitionDetailResult">
+        select d.*,s.stock_code,s.material_code,s.color_no,s.primary_unit,s.auxiliary_unit
+        from inventory_requisition_detail d join inventory_stock s on s.id=d.stock_id
+        where d.order_id=#{orderId} order by d.sort_order,d.id
+    </select>
+
+    <resultMap id="MovementResult" type="InventoryMovement">
+        <id property="id" column="id"/><result property="movementNo" column="movement_no"/>
+        <result property="stockId" column="stock_id"/><result property="stockCode" column="stock_code"/>
+        <result property="materialCode" column="material_code"/><result property="colorNo" column="color_no"/>
+        <result property="movementType" column="movement_type"/><result property="businessType" column="business_type"/>
+        <result property="businessId" column="business_id"/><result property="businessNo" column="business_no"/>
+        <result property="quantityChange" column="quantity_change"/><result property="lockedChange" column="locked_change"/>
+        <result property="auxiliaryChange" column="auxiliary_change"/><result property="lockedAuxiliaryChange" column="locked_auxiliary_change"/>
+        <result property="balanceQty" column="balance_qty"/><result property="balanceLockedQty" column="balance_locked_qty"/>
+        <result property="balanceAuxQty" column="balance_aux_qty"/><result property="balanceLockedAuxQty" column="balance_locked_aux_qty"/>
+        <result property="operatorName" column="operator_name"/><result property="operationTime" column="operation_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+    <select id="selectMovementList" parameterType="InventoryMovement" resultMap="MovementResult">
+        select m.*,s.stock_code,s.material_code,s.color_no from inventory_movement m
+        join inventory_stock s on s.id=m.stock_id
+        <where><if test="stockId != null">m.stock_id=#{stockId}</if>
+        <if test="movementType != null and movementType != ''">and m.movement_type=#{movementType}</if>
+        <if test="businessNo != null and businessNo != ''">and lower(m.business_no) like lower(concat('%',#{businessNo},'%'))</if></where>
+        order by m.operation_time desc,m.id desc
+    </select>
+    <insert id="insertMovement" parameterType="InventoryMovement" useGeneratedKeys="true" keyProperty="id">
+        insert into inventory_movement(movement_no,stock_id,movement_type,business_type,business_id,business_no,
+        quantity_change,locked_change,auxiliary_change,locked_auxiliary_change,balance_qty,balance_locked_qty,
+        balance_aux_qty,balance_locked_aux_qty,operator_name,operation_time,remark)
+        values(#{movementNo},#{stockId},#{movementType},#{businessType},#{businessId},#{businessNo},
+        #{quantityChange},#{lockedChange},#{auxiliaryChange},#{lockedAuxiliaryChange},#{balanceQty},#{balanceLockedQty},
+        #{balanceAuxQty},#{balanceLockedAuxQty},#{operatorName},#{operationTime},#{remark})
+    </insert>
+    <insert id="mergeSequence">
+        insert into inventory_code_sequence(sequence_type,sequence_date,last_value)
+        select #{sequenceType},#{sequenceDate},0 where not exists(
+        select 1 from inventory_code_sequence where sequence_type=#{sequenceType} and sequence_date=#{sequenceDate})
+    </insert>
+    <select id="selectSequenceForUpdate" resultType="int">
+        select last_value from inventory_code_sequence where sequence_type=#{sequenceType} and sequence_date=#{sequenceDate} for update
+    </select>
+    <update id="incrementSequence">
+        update inventory_code_sequence set last_value=last_value+1 where sequence_type=#{sequenceType} and sequence_date=#{sequenceDate}
+    </update>
+</mapper>

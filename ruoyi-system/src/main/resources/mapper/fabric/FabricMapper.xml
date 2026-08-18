@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.FabricMapper">
+
+    <resultMap id="FabricResult" type="Fabric">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="entryDate" column="entry_date"/>
+        <result property="year" column="fabric_year"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="productName" column="product_name"/>
+        <result property="weight" column="weight"/>
+        <result property="width" column="width"/>
+        <result property="colorNo" column="color_no"/>
+        <result property="compositionCode" column="composition_code"/>
+        <result property="compositionSummary" column="composition_summary"/>
+        <result property="priceValue" column="price_value"/>
+        <result property="priceUnit" column="price_unit"/>
+        <result property="meterPrice" column="meter_price"/>
+        <result property="notes" column="notes"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="categoryName" column="category_name"/>
+        <result property="recorderName" column="recorder_name"/>
+        <result property="inventoryStockCount" column="inventory_stock_count"/>
+    </resultMap>
+
+    <resultMap id="SupplierResult" type="FabricSupplier">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="phone" column="phone"/>
+        <result property="address" column="address"/>
+        <result property="remarks" column="remarks"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="CategoryResult" type="FabricCategory">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="name"/>
+        <result property="level" column="category_level"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+
+    <resultMap id="ComponentTypeResult" type="FabricComponentType">
+        <id property="code" column="code"/>
+        <result property="nameCn" column="name_cn"/>
+        <result property="nameEn" column="name_en"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+
+    <resultMap id="CompositionResult" type="FabricComposition">
+        <id property="id" column="id"/>
+        <result property="fabricId" column="fabric_id"/>
+        <result property="componentCode" column="component_code"/>
+        <result property="componentNameCn" column="component_name_cn"/>
+        <result property="componentNameEn" column="component_name_en"/>
+        <result property="percentage" column="percentage"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+
+    <resultMap id="ImageResult" type="FabricImage">
+        <id property="id" column="id"/>
+        <result property="fabricId" column="fabric_id"/>
+        <result property="imageUrl" column="image_url"/>
+        <result property="thumbnailUrl" column="thumbnail_url"/>
+        <result property="imageType" column="image_type"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectFabricVo">
+        select f.id, f.code, f.entry_date, f.fabric_year, f.category_id, f.supplier_id,
+               f.product_name, f.weight, f.width, f.color_no,
+               f.composition_code, f.composition_summary,
+               f.price_value, f.price_unit, f.meter_price,
+               f.notes, f.del_flag,
+               f.create_by, f.create_time, f.update_by, f.update_time,
+               s.name as supplier_name,
+               concat(pc.name, ' / ', c.name) as category_name,
+               case
+                   when u.nick_name is not null
+                        and trim(u.nick_name) != ''
+                        and u.nick_name != f.create_by
+                       then concat(u.nick_name, '（', f.create_by, '）')
+                   else f.create_by
+               end as recorder_name,
+               coalesce(inv.stock_count, 0) as inventory_stock_count
+          from fabric f
+          left join fabric_supplier s on s.id = f.supplier_id
+          left join fabric_category c on c.id = f.category_id
+          left join fabric_category pc on pc.id = c.parent_id
+          left join sys_user u on u.user_name = f.create_by and u.del_flag = '0'
+          left join (
+              select fabric_id, count(*) as stock_count
+                from inventory_stock
+               where del_flag='0' and fabric_id is not null
+               group by fabric_id
+          ) inv on inv.fabric_id=f.id
+    </sql>
+
+    <select id="selectFabricList" parameterType="Fabric" resultMap="FabricResult">
+        <include refid="selectFabricVo"/>
+        <where>
+            f.del_flag = '0'
+            <if test="code != null and code != ''">
+                and lower(f.code) like lower(concat('%', #{code}, '%'))
+            </if>
+            <if test="productName != null and productName != ''">
+                and lower(f.product_name) like lower(concat('%', #{productName}, '%'))
+            </if>
+            <if test="supplierId != null">
+                and f.supplier_id = #{supplierId}
+            </if>
+            <if test="year != null">
+                and f.fabric_year = #{year}
+            </if>
+            <if test="categoryId != null">
+                and (f.category_id = #{categoryId} or c.parent_id = #{categoryId})
+            </if>
+        </where>
+        order by f.entry_date desc, f.code desc
+    </select>
+
+    <select id="selectFabricById" parameterType="Long" resultMap="FabricResult">
+        <include refid="selectFabricVo"/>
+        where f.id = #{id} and f.del_flag = '0'
+    </select>
+
+    <select id="selectFabricsWithoutImagesByYear" parameterType="Integer" resultMap="FabricResult">
+        select f.id, f.code, f.fabric_year, f.entry_date
+          from fabric f
+         where f.fabric_year = #{year}
+           and f.del_flag = '0'
+           and not exists (
+               select 1
+                 from fabric_image fi
+                where fi.fabric_id = f.id
+           )
+         order by f.id
+    </select>
+
+    <select id="countFabricByYear" parameterType="Integer" resultType="int">
+        select count(*) from fabric where fabric_year = #{year} and del_flag = '0'
+    </select>
+
+    <select id="countAllFabricsByYear" parameterType="Integer" resultType="int">
+        select count(*) from fabric where fabric_year = #{year}
+    </select>
+
+    <select id="countFabricTotal" resultType="int">
+        select count(*) from fabric where del_flag = '0'
+    </select>
+
+    <select id="countFabricSuppliers" resultType="int">
+        select count(*) from fabric_supplier
+    </select>
+
+    <select id="countFabricImages" resultType="int">
+        select count(*)
+          from fabric_image fi
+          join fabric f on f.id = fi.fabric_id
+         where f.del_flag = '0'
+    </select>
+
+    <select id="countFabricsWithImages" resultType="int">
+        select count(distinct fi.fabric_id)
+          from fabric_image fi
+          join fabric f on f.id = fi.fabric_id
+         where f.del_flag = '0'
+    </select>
+
+    <select id="selectFabricYearStats" resultType="map">
+        select cast(fabric_year as varchar) as name, count(*) as `value`
+          from fabric
+         where del_flag = '0'
+         group by fabric_year
+         order by fabric_year
+    </select>
+
+    <select id="selectFabricCategoryStats" resultType="map">
+        select coalesce(pc.name, c.name) as name, count(*) as `value`
+          from fabric f
+          left join fabric_category c on c.id = f.category_id
+          left join fabric_category pc on pc.id = c.parent_id
+         where f.del_flag = '0'
+         group by coalesce(pc.name, c.name)
+         order by count(*) desc, coalesce(pc.name, c.name)
+    </select>
+
+    <select id="selectFabricPriceUnitStats" resultType="map">
+        select price_unit as name, count(*) as `value`
+          from fabric
+         where del_flag = '0'
+         group by price_unit
+         order by count(*) desc, price_unit
+    </select>
+
+    <select id="selectRecentFabrics" resultMap="FabricResult">
+        <include refid="selectFabricVo"/>
+        where f.del_flag = '0'
+        order by f.entry_date desc, f.create_time desc, f.id desc
+        limit 6
+    </select>
+
+    <insert id="insertFabric" parameterType="Fabric" useGeneratedKeys="true" keyProperty="id">
+        insert into fabric (
+            code, entry_date, fabric_year, category_id, supplier_id,
+            product_name, weight, width, color_no,
+            composition_code, composition_summary,
+            price_value, price_unit, meter_price,
+            notes, del_flag, create_by, create_time
+        ) values (
+            #{code}, #{entryDate}, #{year}, #{categoryId}, #{supplierId},
+            #{productName}, #{weight}, #{width}, #{colorNo},
+            #{compositionCode}, #{compositionSummary},
+            #{priceValue}, #{priceUnit}, #{meterPrice},
+            #{notes}, '0', #{createBy}, current_timestamp
+        )
+    </insert>
+
+    <update id="updateFabric" parameterType="Fabric">
+        update fabric
+           set code = #{code},
+               entry_date = #{entryDate},
+               fabric_year = #{year},
+               category_id = #{categoryId},
+               supplier_id = #{supplierId},
+               product_name = #{productName},
+               weight = #{weight},
+               width = #{width},
+               color_no = #{colorNo},
+               composition_code = #{compositionCode},
+               composition_summary = #{compositionSummary},
+               price_value = #{priceValue},
+               price_unit = #{priceUnit},
+               meter_price = #{meterPrice},
+               notes = #{notes},
+               update_by = #{updateBy},
+               update_time = current_timestamp
+         where id = #{id} and del_flag = '0'
+    </update>
+
+    <update id="deleteFabricByIds">
+        update fabric
+           set del_flag = '2',
+               update_time = current_timestamp
+         where id in
+        <foreach collection="array" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <select id="selectSupplierList" resultMap="SupplierResult">
+        select id, name, phone, address, remarks, create_time
+          from fabric_supplier
+         order by name
+    </select>
+
+    <select id="selectSupplierByName" parameterType="String" resultMap="SupplierResult">
+        select id, name, phone, address, remarks, create_time
+          from fabric_supplier
+         where lower(name) = lower(#{name})
+         limit 1
+    </select>
+
+    <select id="selectSupplierById" parameterType="Long" resultMap="SupplierResult">
+        select id, name, phone, address, remarks, create_time
+          from fabric_supplier
+         where id = #{id}
+    </select>
+
+    <insert id="insertSupplier" parameterType="FabricSupplier" useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_supplier (name, phone, address, remarks, create_time)
+        values (#{name}, #{phone}, #{address}, #{remarks}, current_timestamp)
+    </insert>
+
+    <update id="updateSupplier" parameterType="FabricSupplier">
+        update fabric_supplier
+           set name = #{name},
+               phone = #{phone},
+               address = #{address},
+               remarks = #{remarks}
+         where id = #{id}
+    </update>
+
+    <delete id="deleteSupplierById" parameterType="Long">
+        delete from fabric_supplier where id = #{id}
+    </delete>
+
+    <select id="countFabricsBySupplierId" parameterType="Long" resultType="int">
+        select count(*)
+          from fabric
+         where supplier_id = #{supplierId}
+    </select>
+
+    <select id="selectCategoryList" resultMap="CategoryResult">
+        select id, parent_id, name, category_level, sort_order
+          from fabric_category
+         order by category_level, parent_id, sort_order, id
+    </select>
+
+    <select id="selectCategoryById" parameterType="Long" resultMap="CategoryResult">
+        select id, parent_id, name, category_level, sort_order
+          from fabric_category
+         where id = #{id}
+    </select>
+
+    <select id="selectCategoryByName" resultMap="CategoryResult">
+        select id, parent_id, name, category_level, sort_order
+          from fabric_category
+         where lower(name) = lower(#{name})
+           and (
+                (#{parentId} is null and parent_id is null)
+                or parent_id = #{parentId}
+           )
+        <if test="excludeId != null">
+           and id != #{excludeId}
+        </if>
+         limit 1
+    </select>
+
+    <insert id="insertCategory" parameterType="FabricCategory"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_category (
+            parent_id, name, category_level, sort_order
+        ) values (
+            #{parentId}, #{name}, #{level}, #{sortOrder}
+        )
+    </insert>
+
+    <update id="updateCategory" parameterType="FabricCategory">
+        update fabric_category
+           set parent_id = #{parentId},
+               name = #{name},
+               category_level = #{level},
+               sort_order = #{sortOrder}
+         where id = #{id}
+    </update>
+
+    <delete id="deleteCategoryById" parameterType="Long">
+        delete from fabric_category where id = #{id}
+    </delete>
+
+    <select id="countCategoryChildren" parameterType="Long" resultType="int">
+        select count(*) from fabric_category where parent_id = #{parentId}
+    </select>
+
+    <select id="countFabricsByCategoryId" parameterType="Long" resultType="int">
+        select count(*)
+          from fabric
+         where category_id = #{categoryId}
+    </select>
+
+    <select id="selectComponentTypeList" resultMap="ComponentTypeResult">
+        select code, name_cn, name_en, sort_order
+          from fabric_component_type
+         where enabled = '1'
+         order by sort_order, code
+    </select>
+
+    <insert id="mergeCodeSequence">
+        insert into fabric_code_sequence (fabric_year, last_value)
+        select #{year}, 0
+         where not exists (
+             select 1
+               from fabric_code_sequence
+              where fabric_year = #{year}
+         )
+    </insert>
+
+    <update id="incrementCodeSequence">
+        update fabric_code_sequence
+           set last_value = last_value + 1
+         where fabric_year = #{year}
+    </update>
+
+    <update id="reserveCodeSequence">
+        update fabric_code_sequence
+           set last_value = last_value + #{amount}
+         where fabric_year = #{year}
+    </update>
+
+    <select id="selectCodeSequence" parameterType="Integer" resultType="int">
+        select last_value
+          from fabric_code_sequence
+         where fabric_year = #{year}
+    </select>
+
+    <select id="selectCodeSequenceForUpdate" parameterType="Integer" resultType="int">
+        select last_value
+          from fabric_code_sequence
+         where fabric_year = #{year}
+           for update
+    </select>
+
+    <select id="selectCompositionsByFabricId" parameterType="Long" resultMap="CompositionResult">
+        select fc.id, fc.fabric_id, fc.component_code,
+               fct.name_cn as component_name_cn,
+               fct.name_en as component_name_en,
+               fc.percentage, fc.sort_order
+          from fabric_composition fc
+          left join fabric_component_type fct on fct.code = fc.component_code
+         where fc.fabric_id = #{fabricId}
+         order by fc.sort_order, fc.id
+    </select>
+
+    <select id="selectCompositionsByFabricIds" resultMap="CompositionResult">
+        select fc.id, fc.fabric_id, fc.component_code,
+               fct.name_cn as component_name_cn,
+               fct.name_en as component_name_en,
+               fc.percentage, fc.sort_order
+          from fabric_composition fc
+          left join fabric_component_type fct on fct.code = fc.component_code
+         where fc.fabric_id in
+        <foreach collection="fabricIds" item="fabricId" open="(" separator="," close=")">
+            #{fabricId}
+        </foreach>
+         order by fc.fabric_id, fc.sort_order, fc.id
+    </select>
+
+    <insert id="insertFabricComposition" parameterType="FabricComposition"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_composition (
+            fabric_id, component_code, percentage, sort_order
+        ) values (
+            #{fabricId}, #{componentCode}, #{percentage}, #{sortOrder}
+        )
+    </insert>
+
+    <delete id="deleteCompositionsByFabricId" parameterType="Long">
+        delete from fabric_composition where fabric_id = #{fabricId}
+    </delete>
+
+    <select id="selectImagesByFabricId" parameterType="Long" resultMap="ImageResult">
+        select id, fabric_id, image_url, thumbnail_url, image_type, sort_order, create_time
+          from fabric_image
+         where fabric_id = #{fabricId}
+         order by sort_order, id
+    </select>
+
+    <select id="selectImagesByFabricIds" resultMap="ImageResult">
+        select id, fabric_id, image_url, thumbnail_url, image_type, sort_order, create_time
+          from fabric_image
+         where fabric_id in
+        <foreach collection="fabricIds" item="fabricId" open="(" separator="," close=")">
+            #{fabricId}
+        </foreach>
+         order by fabric_id, sort_order, id
+    </select>
+
+    <insert id="insertFabricImage" parameterType="FabricImage" useGeneratedKeys="true" keyProperty="id">
+        insert into fabric_image (
+            fabric_id, image_url, thumbnail_url, image_type, sort_order, create_time
+        ) values (
+            #{fabricId}, #{imageUrl}, #{thumbnailUrl}, #{imageType}, #{sortOrder}, current_timestamp
+        )
+    </insert>
+
+    <delete id="deleteImagesByFabricId" parameterType="Long">
+        delete from fabric_image where fabric_id = #{fabricId}
+    </delete>
+
+</mapper>

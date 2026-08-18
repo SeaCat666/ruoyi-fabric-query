@@ -1,0 +1,41 @@
+<template>
+  <div class="app-container order-page">
+    <section class="order-head"><div><span>WAREHOUSING</span><h2>入库单</h2><p>草稿确认无误后过账，库存和流水在同一事务中更新。</p></div><el-button type="primary" icon="Plus" @click="openAdd" v-hasPermi="['inventory:inbound:add']">新建入库单</el-button></section>
+    <el-form ref="queryRef" :model="query" inline><el-form-item label="单号" prop="orderNo"><el-input v-model="query.orderNo" clearable /></el-form-item><el-form-item label="状态" prop="status"><el-select v-model="query.status" clearable style="width:140px"><el-option v-for="item in statuses" :key="item.value" :label="item.label" :value="item.value"/></el-select></el-form-item><el-form-item><el-button type="primary" icon="Search" @click="search">查询</el-button><el-button icon="Refresh" @click="resetQuery">重置</el-button></el-form-item></el-form>
+    <el-table v-loading="loading" :data="rows"><el-table-column label="入库单号" prop="orderNo" min-width="180"/><el-table-column label="入库日期" prop="orderDate" width="120"/><el-table-column label="操作人" prop="operatorName" min-width="120"/><el-table-column label="状态" width="100" align="center"><template #default="{row}"><el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag></template></el-table-column><el-table-column label="创建人" prop="createBy" min-width="110"/><el-table-column label="创建时间" prop="createTime" width="165"/><el-table-column label="备注" prop="remark" min-width="180" show-overflow-tooltip/><el-table-column label="操作" width="260" fixed="right" align="center"><template #default="{row}"><el-button link type="primary" @click="view(row)">查看</el-button><el-button v-if="row.status==='DRAFT'" link type="primary" @click="edit(row)" v-hasPermi="['inventory:inbound:edit']">修改</el-button><el-button v-if="row.status==='DRAFT'" link type="success" @click="post(row)" v-hasPermi="['inventory:inbound:post']">过账</el-button><el-button v-if="row.status==='DRAFT'" link type="danger" @click="remove(row)" v-hasPermi="['inventory:inbound:remove']">删除</el-button><el-button v-if="row.status==='POSTED'" link type="warning" @click="cancel(row)" v-hasPermi="['inventory:inbound:cancel']">冲销</el-button></template></el-table-column></el-table>
+    <pagination v-show="total>0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="load"/>
+
+    <el-dialog v-model="open" :title="readonly ? '入库单详情' : (form.id?'修改入库单':'新建入库单')" width="1050px" append-to-body :close-on-click-modal="false">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="88px"><el-row :gutter="18"><el-col :span="8"><el-form-item label="入库单号"><el-input :model-value="form.orderNo||'保存后自动生成'" disabled/></el-form-item></el-col><el-col :span="8"><el-form-item label="入库日期" prop="orderDate"><el-date-picker v-model="form.orderDate" type="date" value-format="YYYY-MM-DD" :disabled="readonly" style="width:100%"/></el-form-item></el-col><el-col :span="8"><el-form-item label="操作人"><el-input v-model="form.operatorName" :disabled="readonly" placeholder="默认当前账号"/></el-form-item></el-col></el-row>
+      <div class="detail-title"><strong>入库明细</strong><el-button v-if="!readonly" type="primary" plain icon="Plus" @click="addDetail">添加明细</el-button></div>
+      <el-table :data="form.details" border><el-table-column label="库存行" min-width="280"><template #default="{row}"><el-select v-model="row.stockId" filterable :disabled="readonly" style="width:100%" @change="stockChanged(row)"><el-option v-for="item in stocks" :key="item.id" :label="stockLabel(item)" :value="item.id"/></el-select></template></el-table-column><el-table-column label="入库数量" width="180"><template #default="{row}"><el-input-number v-model="row.quantity" :min="0.001" :precision="3" :disabled="readonly" style="width:100%"/><span class="unit">{{ unit(row.stockId,'primaryUnit') }}</span></template></el-table-column><el-table-column label="辅助数量" width="180"><template #default="{row}"><el-input-number v-model="row.auxiliaryQuantity" :min="0" :precision="3" :disabled="readonly" style="width:100%"/><span class="unit">{{ unit(row.stockId,'auxiliaryUnit') }}</span></template></el-table-column><el-table-column v-if="!readonly" label="操作" width="70" align="center"><template #default="{$index}"><el-button link type="danger" icon="Delete" @click="form.details.splice($index,1)"/></template></el-table-column></el-table>
+      <el-form-item label="备注" class="remark"><el-input v-model="form.remark" type="textarea" :rows="3" :disabled="readonly"/></el-form-item></el-form>
+      <template #footer><el-button v-if="!readonly" type="primary" :loading="saving" @click="submit">保存草稿</el-button><el-button @click="open=false">关闭</el-button></template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import {listInbound,getInbound,addInbound,updateInbound,deleteInbound,postInbound,cancelInbound,listStocks} from "@/api/inventory/inventory"
+const {proxy}=getCurrentInstance();const loading=ref(false),saving=ref(false),open=ref(false),readonly=ref(false),rows=ref([]),stocks=ref([]),total=ref(0)
+const query=reactive({pageNum:1,pageSize:20,orderNo:undefined,status:undefined}),form=reactive({})
+const statuses=[{value:'DRAFT',label:'草稿'},{value:'POSTED',label:'已过账'},{value:'CANCELED',label:'已冲销'}]
+const rules={orderDate:[{required:true,message:'请选择入库日期',trigger:'change'}]}
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function reset(){Object.assign(form,{id:undefined,orderNo:undefined,orderDate:today(),operatorName:'',remark:'',details:[{stockId:undefined,quantity:1,auxiliaryQuantity:0}]})}
+function load(){loading.value=true;listInbound(query).then(r=>{rows.value=r.rows||[];total.value=r.total||0}).finally(()=>loading.value=false)}
+function loadStocks(){listStocks({pageNum:1,pageSize:1000}).then(r=>stocks.value=r.rows||[])} function search(){query.pageNum=1;load()} function resetQuery(){proxy.resetForm('queryRef');search()}
+function openAdd(){reset();readonly.value=false;open.value=true} function edit(row){getInbound(row.id).then(r=>{reset();Object.assign(form,r.data);readonly.value=false;open.value=true})} function view(row){getInbound(row.id).then(r=>{reset();Object.assign(form,r.data);readonly.value=true;open.value=true})}
+function addDetail(){form.details.push({stockId:undefined,quantity:1,auxiliaryQuantity:0})} function stockChanged(){}
+function submit(){if(!form.details.length)return proxy.$modal.msgError('请添加入库明细');proxy.$refs.formRef.validate(valid=>{if(!valid)return;saving.value=true;(form.id?updateInbound(form):addInbound(form)).then(()=>{proxy.$modal.msgSuccess('入库单草稿已保存');open.value=false;load()}).finally(()=>saving.value=false)})}
+function post(row){proxy.$modal.confirm(`确认过账入库单 ${row.orderNo}？过账后将立即增加库存。`).then(()=>postInbound(row.id)).then(()=>{proxy.$modal.msgSuccess('过账成功');load()}).catch(()=>{})}
+function cancel(row){proxy.$modal.confirm(`确认冲销 ${row.orderNo}？系统会检查可用库存并生成反向流水。`).then(()=>cancelInbound(row.id)).then(()=>{proxy.$modal.msgSuccess('冲销成功');load()}).catch(()=>{})}
+function remove(row){proxy.$modal.confirm(`确认删除草稿 ${row.orderNo}？`).then(()=>deleteInbound(row.id)).then(()=>{proxy.$modal.msgSuccess('删除成功');load()}).catch(()=>{})}
+function statusLabel(v){return statuses.find(i=>i.value===v)?.label||v} function statusType(v){return v==='POSTED'?'success':v==='CANCELED'?'info':'warning'}
+function stock(v){return stocks.value.find(i=>i.id===v)||{}} function unit(id,key){return stock(id)[key]||''} function stockLabel(i){return `${i.stockCode}｜${i.materialCode||'未编号'}｜${i.colorNo||'无色号'}｜可用 ${Number(i.onHandQty)-Number(i.lockedQty)} ${i.primaryUnit}`}
+load();loadStocks()
+</script>
+
+<style scoped>
+.order-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:22px 26px;border:1px solid #dbeafe;border-radius:12px;background:#eff6ff}.order-head span{font-size:11px;letter-spacing:2px;color:#2563eb}.order-head h2{margin:4px 0}.order-head p{margin:0;color:#64748b}.detail-title{display:flex;justify-content:space-between;align-items:center;margin:8px 0 12px}.unit{display:block;margin-top:3px;color:#64748b;font-size:12px;text-align:right}.remark{margin-top:18px}:deep(.el-table__header th){background:#f8fafc}
+</style>
